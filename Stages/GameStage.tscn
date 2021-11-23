@@ -1,0 +1,510 @@
+[gd_scene load_steps=38 format=2]
+
+[ext_resource path="res://Stages/Camera/Camera.gd" type="Script" id=1]
+[ext_resource path="res://Scenes/Bird/Bird.tscn" type="PackedScene" id=2]
+[ext_resource path="res://Scenes/Ground/SpawnerGround.tscn" type="PackedScene" id=3]
+[ext_resource path="res://Scenes/Background/Background.tscn" type="PackedScene" id=4]
+[ext_resource path="res://Scenes/Pipe/PipeSpawner.tscn" type="PackedScene" id=5]
+[ext_resource path="res://flappy bird - sprites/instructions.png" type="Texture" id=6]
+[ext_resource path="res://font_score.ttf" type="DynamicFontData" id=7]
+[ext_resource path="res://flappy bird - sprites/button_pause.png" type="Texture" id=8]
+[ext_resource path="res://flappy bird - sprites/label_game_over.png" type="Texture" id=9]
+[ext_resource path="res://flappy bird - sprites/panel_score.png" type="Texture" id=10]
+[ext_resource path="res://flappy bird - sprites/label_new.png" type="Texture" id=11]
+[ext_resource path="res://flappy bird - sprites/spark_0.png" type="Texture" id=12]
+[ext_resource path="res://flappy bird - sprites/spark_1.png" type="Texture" id=13]
+[ext_resource path="res://flappy bird - sprites/spark_2.png" type="Texture" id=14]
+[ext_resource path="res://flappy bird - sprites/button_play_normal.png" type="Texture" id=15]
+[ext_resource path="res://flappy bird - sprites/button_play_pressed.png" type="Texture" id=16]
+[ext_resource path="res://flappy bird - sprites/button_score_normal.png" type="Texture" id=17]
+[ext_resource path="res://flappy bird - sprites/button_score_pressed.png" type="Texture" id=18]
+[ext_resource path="res://flappy bird - sprites/button_rate_normal.png" type="Texture" id=19]
+[ext_resource path="res://flappy bird - sprites/button_rate_pressed.png" type="Texture" id=20]
+[ext_resource path="res://flappy bird - sprites/rect_black.png" type="Texture" id=21]
+[ext_resource path="res://flappy bird - sprites/button_resume.png" type="Texture" id=22]
+[ext_resource path="res://flappy bird - sprites/button_menu.png" type="Texture" id=23]
+[ext_resource path="res://audioOn.png" type="Texture" id=24]
+
+[sub_resource type="GDScript" id=1]
+resource_name = "InstructButton"
+script/source = "#InstructButton Script (built in)
+
+extends TextureButton
+
+func _ready():
+	connect(\"pressed\", self, \"_on_Pressed\")
+	#press space will activate screen
+	grab_focus()
+
+func _on_Pressed():
+	var bird = get_parent().get_parent().get_node(\"Bird\")
+	#if bird is found and button is pressed play flapping state for bird
+	if bird:
+		bird.set_state(bird.STATE_FLAPPING)
+	hide()"
+
+[sub_resource type="DynamicFont" id=2]
+size = 48
+outline_size = 5
+outline_color = Color( 0, 0, 0, 1 )
+font_data = ExtResource( 7 )
+
+[sub_resource type="GDScript" id=3]
+resource_name = "ScoreLabel"
+script/source = "#Score (built-in)
+extends Label
+
+func _ready():
+	#connect signal score changed to update score from game autoload script
+	Game.connect(\"score_current_changed\", self, \"_on_score_current_changed\")
+	#initially set current score when game starts
+	text = str(Game.score_current)
+
+#everytime score changes label changes
+func _on_score_current_changed():
+	#text assigns to game current score
+	text = str(Game.score_current)"
+
+[sub_resource type="GDScript" id=4]
+resource_name = "PauseButton"
+script/source = "#PauseButton (built-in)
+extends TextureButton
+
+func _ready():
+	pass
+
+#when pause button pressed game pauses
+func _on_PauseButton_pressed():
+	get_tree().paused = true
+"
+
+[sub_resource type="GDScript" id=5]
+script/source = "#GameOver script (built-in)
+extends Container
+
+func _ready():
+	pass
+
+#bird state changed signal is connected and shows game over screen once bird state is grounded  
+func _on_Bird_state_changed(bird):
+	if bird.get_state() == bird.STATE_GROUNDED:
+		#plays show animation
+		get_node(\"AnimationPlayer\").play(\"Show\")
+		#hide score
+		var score = get_parent().get_node(\"Score\")
+		score.hide()
+		var pause = get_parent().get_node(\"PauseButton\")
+		pause.hide()
+"
+
+[sub_resource type="GDScript" id=6]
+script/source = "#Panelscore (built-in)
+extends TextureRect
+
+const MEDAL_BRONZE = preload(\"res://flappy bird - sprites/medal_bronze.png\")
+const MEDAL_SILVER = preload(\"res://flappy bird - sprites/medal_silver.png\")
+const MEDAL_GOLD = preload(\"res://flappy bird - sprites/medal_gold.png\")
+const MEDAL_PLATINUM = preload(\"res://flappy bird - sprites/medal_platinum.png\")
+
+const FILEPATH = \"user://score_best.data\"
+
+signal shown
+
+func _ready():
+	load_score()
+	#hide medal image
+	#$MedalImg.hide()
+	#connect signal score changed to update score from game autoload script
+	Game.connect(\"score_current_changed\", self, \"_on_score_current_changed\")
+	
+	sparks()
+	connect(\"shown\", $MedalImg/AnimatedSprite/AnimationPlayer, \"play\", [\"Shine\"] )
+	
+	#initial best score is 0
+	Game.score_best = 0
+	$BestLabel.text = str(Game.score_best)
+
+#everytime score changes label changes
+func _on_score_current_changed():
+	#text assigns to game current score
+	get_node(\"ScoreLabel\").text = str(Game.score_current)
+	#game best score is set to game current score
+	#if game current score > game best score then game current score is new game best score
+	Game._set_score_best(Game.score_current)
+	#If game current score >= best score show image
+	if Game.score_current >= Game.score_best:
+		$NewImg.show()
+	elif Game.score_best > Game.score_current:
+	#if best score > current score hide image
+		$NewImg.hide()
+	#best label text assigns best score
+	get_node(\"BestLabel\").text = str(Game.score_best)
+	show_medal()
+
+#assign medal to scores and show corresponding medals
+func show_medal():
+	var sprite = null
+	
+	#if current score is in score bracket show medal
+	if Game.score_current >= Game.BRONZE_MEDAL and Game.score_current < Game.SILVER_MEDAL:
+		Game._get_medal(Game.score_current)
+		sprite = MEDAL_BRONZE
+		sparks()
+	elif Game.score_current >= Game.SILVER_MEDAL and Game.score_current < Game.GOLD_MEDAL:
+		Game._get_medal(Game.score_current)
+		sprite = MEDAL_SILVER
+		sparks()
+	elif Game.score_current >= Game.GOLD_MEDAL and Game.score_current < Game.PLATINUM_MEDAL:
+		Game._get_medal(Game.score_current)
+		sprite = MEDAL_GOLD
+		sparks()
+	elif Game.score_current >= Game.PLATINUM_MEDAL:
+		Game._get_medal(Game.score_current)
+		sprite = MEDAL_PLATINUM
+		sparks()
+		
+	#if texture has an image set image to texture
+	if sprite != null:
+		$MedalImg.texture = sprite
+		emit_signal(\"shown\")
+		show()
+
+func sparks():
+	randomize()
+	var x = rand_range(0, 20)
+	var y = rand_range(0, 20)
+	$MedalImg/AnimatedSprite.position = Vector2(x,y)
+
+#research about godot file handling
+func load_score():
+	var file = File.new()
+	if not file.file_exists(FILEPATH):
+		return
+	file.open(FILEPATH, file.READ)
+	Game.score_best = file.get_var()
+	file.close()
+
+func save_score():
+	var file = File.new()
+	file.open(FILEPATH, file.WRITE)
+	file.store_var(Game.score_best)
+	file.close()
+
+func set_score(value):
+	Game.score_best = value
+	save_score()
+"
+
+[sub_resource type="DynamicFont" id=7]
+size = 14
+outline_size = 1
+outline_color = Color( 0, 0, 0, 1 )
+font_data = ExtResource( 7 )
+
+[sub_resource type="DynamicFont" id=8]
+size = 14
+outline_size = 1
+outline_color = Color( 0, 0, 0, 1 )
+font_data = ExtResource( 7 )
+
+[sub_resource type="SpriteFrames" id=9]
+animations = [ {
+"frames": [ ExtResource( 12 ), ExtResource( 13 ), ExtResource( 14 ) ],
+"loop": true,
+"name": "Spark",
+"speed": 5.0
+} ]
+
+[sub_resource type="Animation" id=10]
+length = 0.5
+loop = true
+tracks/0/type = "value"
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"times": PoolRealArray( 0, 0.1, 0.2, 0.3, 0.4 ),
+"transitions": PoolRealArray( 1, 1, 1, 1, 1 ),
+"update": 1,
+"values": [ 0, 1, 2, 1, 0 ]
+}
+
+[sub_resource type="GDScript" id=11]
+script/source = "extends TextureButton
+
+func _ready():
+	pass
+
+#when user press button animation plays and transitions to restarting game
+func _on_PlayButton_pressed():
+	StageManager.change_stage(StageManager.GAMESTAGE)
+	grab_focus()
+"
+
+[sub_resource type="Animation" id=12]
+tracks/0/type = "value"
+tracks/0/path = NodePath(".:visible")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"times": PoolRealArray( 0 ),
+"transitions": PoolRealArray( 1 ),
+"update": 1,
+"values": [ true ]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("GameOverImg:self_modulate")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/keys = {
+"times": PoolRealArray( 0, 0.7 ),
+"transitions": PoolRealArray( 1, 1 ),
+"update": 0,
+"values": [ Color( 1, 1, 1, 0 ), Color( 1, 1, 1, 1 ) ]
+}
+tracks/2/type = "value"
+tracks/2/path = NodePath("GameOverImg:rect_position")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/keys = {
+"times": PoolRealArray( 0, 0.7 ),
+"transitions": PoolRealArray( 1, 1 ),
+"update": 0,
+"values": [ Vector2( 112, 240 ), Vector2( 112, 250 ) ]
+}
+tracks/3/type = "value"
+tracks/3/path = NodePath("PanelScoreImg:rect_position")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/keys = {
+"times": PoolRealArray( 0, 1 ),
+"transitions": PoolRealArray( 0.25, 1 ),
+"update": 0,
+"values": [ Vector2( 87, 1050 ), Vector2( 87, 400 ) ]
+}
+
+[sub_resource type="GDScript" id=13]
+script/source = "#PauseScene (built-in)
+extends Container
+
+#pause on inspector needs to be set to process so when game is paused the PausedScene won't be paused like all it's other parents node buttons state 
+
+func _ready():
+	hide()
+
+#when pause button pressed show scene
+func _on_PauseButton_pressed():
+	show()
+
+#when resume button is pressed game resumes
+func _on_ResumeButton_pressed():
+	get_tree().paused = false
+	hide()
+
+#when menu button is pressed it chnages scene back to main menu
+func _on_MenuButton_pressed():
+	get_tree().paused = false
+	StageManager.change_stage(StageManager.MENU)
+"
+
+[node name="GameStage" type="Node"]
+
+[node name="Camera" type="Camera2D" parent="."]
+offset = Vector2( -128, 0 )
+anchor_mode = 0
+current = true
+script = ExtResource( 1 )
+
+[node name="Bird" parent="." instance=ExtResource( 2 )]
+position = Vector2( 128, 450 )
+
+[node name="SpawnerGround" parent="." instance=ExtResource( 3 )]
+
+[node name="Background" parent="." instance=ExtResource( 4 )]
+
+[node name="PipeSpawner" parent="." instance=ExtResource( 5 )]
+
+[node name="HUD" type="CanvasLayer" parent="."]
+layer = 5
+
+[node name="InstructButton" type="TextureButton" parent="HUD"]
+margin_right = 512.0
+margin_bottom = 1024.0
+action_mode = 0
+script = SubResource( 1 )
+
+[node name="TextureRect" type="TextureRect" parent="HUD/InstructButton"]
+anchor_right = 1.0
+margin_left = 155.0
+margin_top = 384.0
+margin_right = -157.0
+margin_bottom = 584.0
+rect_pivot_offset = Vector2( 115, 0 )
+texture = ExtResource( 6 )
+expand = true
+
+[node name="Score" type="Label" parent="HUD"]
+margin_top = 50.0
+margin_right = 512.0
+margin_bottom = 100.0
+custom_fonts/font = SubResource( 2 )
+text = "0"
+align = 1
+valign = 1
+script = SubResource( 3 )
+
+[node name="PauseButton" type="TextureButton" parent="HUD"]
+margin_left = 30.0
+margin_top = 50.0
+margin_right = 43.0
+margin_bottom = 64.0
+rect_scale = Vector2( 3.5, 3.5 )
+texture_normal = ExtResource( 8 )
+script = SubResource( 4 )
+
+[node name="GameOver" type="Container" parent="HUD"]
+visible = false
+margin_right = 512.0
+margin_bottom = 1024.0
+mouse_filter = 2
+script = SubResource( 5 )
+
+[node name="GameOverImg" type="TextureRect" parent="HUD/GameOver"]
+margin_left = 112.0
+margin_top = 250.0
+margin_right = 208.0
+margin_bottom = 275.0
+rect_scale = Vector2( 3, 3 )
+texture = ExtResource( 9 )
+
+[node name="PanelScoreImg" type="TextureRect" parent="HUD/GameOver"]
+margin_left = 87.0
+margin_top = 400.0
+margin_right = 200.0
+margin_bottom = 457.0
+rect_scale = Vector2( 3, 3 )
+texture = ExtResource( 10 )
+script = SubResource( 6 )
+
+[node name="ScoreLabel" type="Label" parent="HUD/GameOver/PanelScoreImg"]
+margin_left = 73.0
+margin_top = 15.0
+margin_right = 102.0
+margin_bottom = 29.0
+custom_fonts/font = SubResource( 7 )
+text = "0"
+align = 2
+
+[node name="BestLabel" type="Label" parent="HUD/GameOver/PanelScoreImg"]
+margin_left = 65.0
+margin_top = 37.0
+margin_right = 102.0
+margin_bottom = 54.0
+custom_fonts/font = SubResource( 8 )
+text = "0"
+align = 2
+
+[node name="NewImg" type="TextureRect" parent="HUD/GameOver/PanelScoreImg"]
+margin_left = 67.2539
+margin_top = 28.9199
+margin_right = 83.2539
+margin_bottom = 35.9199
+texture = ExtResource( 11 )
+
+[node name="MedalImg" type="TextureRect" parent="HUD/GameOver/PanelScoreImg"]
+margin_left = 13.3663
+margin_top = 21.6271
+margin_right = 35.3663
+margin_bottom = 43.6271
+
+[node name="AnimatedSprite" type="AnimatedSprite" parent="HUD/GameOver/PanelScoreImg/MedalImg"]
+frames = SubResource( 9 )
+animation = "Spark"
+speed_scale = 0.8
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="HUD/GameOver/PanelScoreImg/MedalImg/AnimatedSprite"]
+anims/Shine = SubResource( 10 )
+
+[node name="PlayButton" type="TextureButton" parent="HUD/GameOver"]
+margin_left = 90.0
+margin_top = 650.0
+margin_right = 142.0
+margin_bottom = 690.0
+rect_scale = Vector2( 3, 3 )
+texture_normal = ExtResource( 15 )
+texture_pressed = ExtResource( 16 )
+script = SubResource( 11 )
+
+[node name="ScoreButton" type="TextureButton" parent="HUD/GameOver"]
+margin_left = 270.0
+margin_top = 650.0
+margin_right = 322.0
+margin_bottom = 690.0
+rect_scale = Vector2( 3, 3 )
+texture_normal = ExtResource( 17 )
+texture_pressed = ExtResource( 18 )
+
+[node name="RateButton" type="TextureButton" parent="HUD/GameOver"]
+margin_left = 215.0
+margin_top = 580.0
+margin_right = 246.0
+margin_bottom = 598.0
+rect_scale = Vector2( 2.5, 2.5 )
+texture_normal = ExtResource( 19 )
+texture_pressed = ExtResource( 20 )
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="HUD/GameOver"]
+playback_speed = 1.5
+anims/Show = SubResource( 12 )
+
+[node name="PauseScene" type="Container" parent="HUD"]
+pause_mode = 2
+margin_right = 512.0
+margin_bottom = 1024.0
+script = SubResource( 13 )
+
+[node name="PauseBack" type="TextureRect" parent="HUD/PauseScene"]
+modulate = Color( 1, 1, 1, 0.509804 )
+self_modulate = Color( 1, 1, 1, 0.392157 )
+margin_right = 512.0
+margin_bottom = 1024.0
+texture = ExtResource( 21 )
+expand = true
+
+[node name="ResumeButton" type="TextureButton" parent="HUD/PauseScene"]
+margin_left = 30.0
+margin_top = 50.0
+margin_right = 43.0
+margin_bottom = 64.0
+rect_scale = Vector2( 3.5, 3.5 )
+texture_normal = ExtResource( 22 )
+
+[node name="MenuButton" type="TextureButton" parent="HUD/PauseScene"]
+margin_left = 175.0
+margin_top = 456.0
+margin_right = 215.0
+margin_bottom = 470.0
+rect_scale = Vector2( 4, 4 )
+texture_normal = ExtResource( 23 )
+
+[node name="MuteButton" type="TextureButton" parent="HUD/PauseScene"]
+margin_left = 412.0
+margin_right = 512.0
+margin_bottom = 100.0
+texture_normal = ExtResource( 24 )
+[connection signal="state_changed" from="Bird" to="HUD/GameOver" method="_on_Bird_state_changed"]
+[connection signal="pressed" from="HUD/PauseButton" to="HUD/PauseScene" method="_on_PauseButton_pressed"]
+[connection signal="pressed" from="HUD/PauseButton" to="HUD/PauseButton" method="_on_PauseButton_pressed"]
+[connection signal="pressed" from="HUD/GameOver/PlayButton" to="HUD/GameOver/PlayButton" method="_on_PlayButton_pressed"]
+[connection signal="pressed" from="HUD/PauseScene/ResumeButton" to="HUD/PauseScene" method="_on_ResumeButton_pressed"]
+[connection signal="pressed" from="HUD/PauseScene/MenuButton" to="HUD/PauseScene" method="_on_MenuButton_pressed"]
